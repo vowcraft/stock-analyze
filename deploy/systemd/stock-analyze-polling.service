@@ -1,0 +1,16 @@
+[Unit]
+Description=stock-analyze polling
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/stock-analyze
+EnvironmentFile=/opt/stock-analyze/.env
+ExecStart=/opt/stock-analyze/scripts/start_polling.sh
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/stock-analyze/logs/polling.log
+StandardError=append:/opt/stock-analyze/logs/polling.log
+
+[Install]
+WantedBy=multi-user.target
