@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.zyl.stockanalyze.akshare.AkshareStockService;
 import com.zyl.stockanalyze.notification.NotificationSender;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,22 +20,23 @@ import java.util.Objects;
 public final class StockPollingJob {
     private static final int LOOKBACK_DAYS = 20;
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final String DEFAULT_SYMBOL = "600519";
 
     private final AkshareStockService stockService;
     private final NotificationSender notificationSender;
     private final String symbol;
 
+
     public StockPollingJob(
             AkshareStockService stockService,
-            NotificationSender notificationSender,
-            @Value("${app.symbol:600519}") String symbol
+            NotificationSender notificationSender
     ) {
         this.stockService = Objects.requireNonNull(stockService, "stockService");
         this.notificationSender = Objects.requireNonNull(notificationSender, "notificationSender");
-        this.symbol = Objects.requireNonNull(symbol, "symbol");
+        this.symbol = DEFAULT_SYMBOL;
     }
 
-    @Scheduled(initialDelayString = "${app.polling.initial-delay-ms:0}", fixedDelayString = "${app.polling.fixed-delay-ms:60000}")
+    @Scheduled(initialDelay = 0L, fixedDelay = 60000L)
     public void run() {
         try {
             LocalDate endDate = LocalDate.now();

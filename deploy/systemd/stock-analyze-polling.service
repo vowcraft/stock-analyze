@@ -5,7 +5,6 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/opt/stock-analyze
-EnvironmentFile=/opt/stock-analyze/.env
 ExecStart=/opt/stock-analyze/scripts/start_polling.sh
 Restart=always
 RestartSec=5

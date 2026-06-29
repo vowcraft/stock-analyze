@@ -10,7 +10,7 @@ echo "[deploy] python bin: ${PYTHON_BIN}"
 echo "[deploy] skip maven build: ${SKIP_MAVEN_BUILD}"
 
 if ! command -v java >/dev/null 2>&1; then
-  echo "[deploy] java not found. install Java 17+ first. Ubuntu 24.04 recommendation: openjdk-17-jdk" >&2
+  echo "[deploy] java not found. install Java 11+ first. Ubuntu 24.04 recommendation: openjdk-11-jdk" >&2
   exit 1
 fi
 
@@ -20,9 +20,9 @@ JAVA_MAJOR="${JAVA_VERSION_RAW%%.*}"
 if [[ "${JAVA_VERSION_RAW}" == 1.* ]]; then
   JAVA_MAJOR="$(echo "${JAVA_VERSION_RAW}" | cut -d'.' -f2)"
 fi
-if [ -z "${JAVA_MAJOR}" ] || [ "${JAVA_MAJOR}" -lt 17 ]; then
-  echo "[deploy] java ${JAVA_VERSION_RAW:-unknown} detected, but this project requires Java 17+" >&2
-  echo "[deploy] Ubuntu 24.04 recommendation: sudo apt install -y openjdk-17-jdk" >&2
+if [ -z "${JAVA_MAJOR}" ] || [ "${JAVA_MAJOR}" -lt 11 ]; then
+  echo "[deploy] java ${JAVA_VERSION_RAW:-unknown} detected, but this project requires Java 11+" >&2
+  echo "[deploy] Ubuntu 24.04 recommendation: sudo apt install -y openjdk-11-jdk" >&2
   exit 1
 fi
 
@@ -67,10 +67,5 @@ fi
 
 echo "[deploy] ensuring runtime directories"
 mkdir -p logs run
-
-if [ ! -f .env ]; then
-  cp .env.example .env
-  echo "[deploy] created .env from template, please review secrets before starting"
-fi
 
 echo "[deploy] done"

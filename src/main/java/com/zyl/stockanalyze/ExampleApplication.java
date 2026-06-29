@@ -35,9 +35,9 @@ public class ExampleApplication {
 
     @Bean
     WeComCallbackConfig weComCallbackConfig(
-            @Value("${wecom.callback.receive-id:${WECOM_CALLBACK_RECEIVE_ID:${WECOM_CORP_ID:}}}") String receiveId,
-            @Value("${wecom.callback.token:${WECOM_CALLBACK_TOKEN:stock-analyze-token}}") String token,
-            @Value("${wecom.callback.encoding-aes-key:${WECOM_CALLBACK_ENCODING_AES_KEY:yDJGijqy+YHErEFLuf5g2e/zIcxu7azZN16kJT3rkds}}") String encodingAesKey
+            @Value("${wecom.callback.receive-id}") String receiveId,
+            @Value("${wecom.callback.token}") String token,
+            @Value("${wecom.callback.encoding-aes-key}") String encodingAesKey
     ) {
         return WeComCallbackConfig.fromProperties(receiveId, token, encodingAesKey);
     }

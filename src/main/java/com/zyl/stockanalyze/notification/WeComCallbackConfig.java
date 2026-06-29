@@ -5,8 +5,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class WeComCallbackConfig {
-    private static final String DEFAULT_CALLBACK_TOKEN = "stock-analyze-token";
-    private static final String DEFAULT_CALLBACK_ENCODING_AES_KEY = "yDJGijqy+YHErEFLuf5g2e/zIcxu7azZN16kJT3rkds";
+    private static final String DEFAULT_CALLBACK_TOKEN = "stockanalyze2026";
+    private static final String DEFAULT_CALLBACK_ENCODING_AES_KEY = "stockanalyze2026abcdefghijklmnopqrstuvwxyz1";
 
     private final String receiveId;
     private final String token;
@@ -37,9 +37,11 @@ public final class WeComCallbackConfig {
         if (resolvedToken == null) {
             throw new IllegalStateException("WECOM_CALLBACK_TOKEN must be configured");
         }
+        requireEnglishOrDigits("WECOM_CALLBACK_TOKEN", resolvedToken);
         if (resolvedEncodingAesKey == null || resolvedEncodingAesKey.length() != 43) {
             throw new IllegalStateException("WECOM_CALLBACK_ENCODING_AES_KEY must be a 43-character string");
         }
+        requireEnglishOrDigits("WECOM_CALLBACK_ENCODING_AES_KEY", resolvedEncodingAesKey);
 
         return new WeComCallbackConfig(resolvedReceiveId, resolvedToken, resolvedEncodingAesKey);
     }
@@ -79,5 +81,14 @@ public final class WeComCallbackConfig {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static void requireEnglishOrDigits(String name, String value) {
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (!(c >= '0' && c <= '9') && !(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z')) {
+                throw new IllegalStateException(name + " must contain only English letters or digits");
+            }
+        }
     }
 }

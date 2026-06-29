@@ -19,11 +19,7 @@ pip install -r requirements.txt
 ## 运行示例
 
 ```bash
-WECOM_CORP_ID=your-corp-id \
-WECOM_CORP_SECRET=your-corp-secret \
-WECOM_AGENT_ID=1000002 \
-WECOM_TO_PARTY=1 \
-APP_SYMBOL=600519 mvn -DskipTests package
+mvn -DskipTests package
 java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
 ```
 
@@ -34,7 +30,7 @@ java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
 - 定时任务每 `1` 分钟执行一次，抓股票并发企业微信
 - 一个进程同时提供 Web 接口和定时任务，不需要再拆成两个服务
 
-当前主程序会在拿到数据后直接把同样的信息作为文本消息发到企业微信；如果企业微信参数没有配齐，程序会在启动时直接报错。
+当前主程序会在拿到数据后直接把同样的信息作为文本消息发到企业微信。代码里已经硬编码了默认的企业微信应用凭据，发往默认的 `wwad4729df5fff92cf` corp；如需切换 corp，修改 `WeComNotifier.java:22-25` 的 4 个 `DEFAULT_*` 常量即可。
 
 如果你要接别的 AkShare 接口，直接复用 `AkshareClient.invoke(functionName, params)` 即可。
 
@@ -47,24 +43,17 @@ java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
 - 端口：`80`
 - 路径：`/wecom/callback`
 
-也支持环境变量覆盖：
-
-- `SERVER_PORT`
-- `WECOM_CALLBACK_RECEIVE_ID`
-- `WECOM_CALLBACK_TOKEN`
-- `WECOM_CALLBACK_ENCODING_AES_KEY`
-
 当前代码内置的默认回调配置：
 
 - `receiveId`: `wwad4729df5fff92cf`
-- `token`: `stock-analyze-token`
-- `EncodingAESKey`: `yDJGijqy+YHErEFLuf5g2e/zIcxu7azZN16kJT3rkds`
+- `token`: `stockanalyze2026`
+- `EncodingAESKey`: `stockanalyze2026abcdefghijklmnopqrstuvwxyz1`
 
 企业微信后台配置“接收消息服务器URL”时：
 
 1. URL 填你自己的公网地址，例如 `https://your-domain.com/wecom/callback`
-2. Token 填 `stock-analyze-token`
-3. EncodingAESKey 填 `yDJGijqy+YHErEFLuf5g2e/zIcxu7azZN16kJT3rkds`
+2. Token 填 `stockanalyze2026`
+3. EncodingAESKey 填 `stockanalyze2026abcdefghijklmnopqrstuvwxyz1`
 
 说明：
 
@@ -74,15 +63,9 @@ java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
 
 默认会优先查找：
 
-1. 环境变量 `AKSHARE_PYTHON`
+1. 环境变量 `AKSHARE_PYTHON`（可选覆盖）
 2. 项目目录下的 `.venv/bin/python` 或 `.venv/Scripts/python.exe`
 3. 最后才回退到系统 `python3`
-
-如果你想显式指定 Python，也可以这样跑：
-
-```bash
-AKSHARE_PYTHON=.venv/bin/python java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
-```
 
 ## 可复用入口
 
@@ -92,6 +75,8 @@ AKSHARE_PYTHON=.venv/bin/python java -jar target/stock-analyze-1.0.0-SNAPSHOT.ja
 - 定时任务：`src/main/java/com/zyl/stockanalyze/StockPollingJob.java`
 
 ## 可选环境变量
+
+下面这些环境变量仅作为可选覆盖，代码里已经有合理默认值；**不设也能跑**。
 
 - `AKSHARE_PYTHON`: 指定 Python 解释器路径
 - `AKSHARE_BRIDGE_SCRIPT`: 指定桥接脚本路径
@@ -110,30 +95,25 @@ AKSHARE_PYTHON=.venv/bin/python java -jar target/stock-analyze-1.0.0-SNAPSHOT.ja
 
 1. `WECOM_WEBHOOK_URL` / `WECOM_WEBHOOK_KEY`
 2. `WECOM_CORP_ID` + `WECOM_CORP_SECRET` + `WECOM_AGENT_ID` + (`WECOM_TO_USER` / `WECOM_TO_PARTY` / `WECOM_TO_TAG`)
-
-示例：
-
-```bash
-WECOM_WEBHOOK_KEY=your-key java -jar target/stock-analyze-1.0.0-SNAPSHOT.jar
-```
+3. 都不设时，使用 `WeComNotifier.java` 里硬编码的默认值
 
 ## Linux 部署
 
 当前项目运行时依赖：
 
-- Java 17+
+- Java 11+
 - Python 3.9+
 - `python3-venv`
 
 如果你在 Linux 服务器上现场编译，才需要 Maven 3.6+。
 
-在 Ubuntu Server 24.04 LTS 上，推荐直接安装 `openjdk-17-jdk`。
+在 Ubuntu Server 24.04 LTS 上，推荐直接安装 `openjdk-11-jdk`。
 
 推荐最小安装：
 
 ```bash
 sudo apt update
-sudo apt install -y git openjdk-17-jdk python3 python3-venv python3-pip
+sudo apt install -y git openjdk-11-jdk python3 python3-venv python3-pip
 ```
 
 如果 `python3-venv` 提示找不到，可以先启用 `universe` 再安装：
@@ -141,7 +121,7 @@ sudo apt install -y git openjdk-17-jdk python3 python3-venv python3-pip
 ```bash
 sudo add-apt-repository universe
 sudo apt update
-sudo apt install -y git openjdk-17-jdk python3 python3-venv python3-pip
+sudo apt install -y git openjdk-11-jdk python3 python3-venv python3-pip
 ```
 
 注意：`akshare==1.18.64` 要求 `Python >= 3.9`。如果你的服务器自带的是 `Python 3.6/3.7/3.8`，会出现：
@@ -158,7 +138,6 @@ APP_HOME=/opt/stock-analyze PYTHON_BIN=/usr/bin/python3.9 ./scripts/deploy_linux
 
 部署文件已经生成：
 
-- 环境变量模板：`.env.example`
 - 一键部署脚本：`scripts/deploy_linux.sh`
 - 主启动脚本：`scripts/start_polling.sh`
 - systemd 服务：`deploy/systemd/stock-analyze-polling.service`
@@ -169,10 +148,7 @@ APP_HOME=/opt/stock-analyze PYTHON_BIN=/usr/bin/python3.9 ./scripts/deploy_linux
 cd /opt
 git clone <your-repo-url> stock-analyze
 cd /opt/stock-analyze
-cp .env.example .env
 ```
-
-修改 `.env` 里的密钥和参数。
 
 如果你没有 git 仓库，可以直接本地打包后上传：
 
@@ -204,7 +180,6 @@ cd /opt
 mkdir -p stock-analyze
 tar -xzf stock-analyze-*.tar.gz -C stock-analyze
 cd stock-analyze
-cp .env.example .env
 ```
 
 ### 2. 执行部署脚本

@@ -7,6 +7,7 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="fb-sync-i18n-service" />
+        <module name="stock-analyze" />
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="11" />
@@ -14,6 +15,7 @@
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="fb-sync-i18n-service" options="-parameters" />
+      <module name="stock-analyze" options="-parameters" />
     </option>
   </component>
 </project>

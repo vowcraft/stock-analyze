@@ -6,9 +6,11 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -172,7 +174,49 @@ public final class AkshareClient {
         if (override != null && !override.isBlank()) {
             return Path.of(override);
         }
-        return Path.of("scripts", "akshare_bridge.py");
+
+        Path cwd = Path.of("").toAbsolutePath().normalize();
+        List<Path> candidates = List.of(
+                cwd.resolve("scripts/akshare_bridge.py"),
+                cwd.resolve("..").resolve("scripts/akshare_bridge.py"),
+                cwd.resolve("..").resolve("..").resolve("scripts/akshare_bridge.py"),
+                cwd.resolve("akshare_bridge.py"),
+                cwd.resolve("..").resolve("akshare_bridge.py"),
+                Path.of("/app/scripts/akshare_bridge.py"),
+                Path.of("/app/akshare_bridge.py"),
+                Path.of("/opt/stock-analyze/scripts/akshare_bridge.py"),
+                Path.of("/opt/stock-analyze/akshare_bridge.py")
+        );
+
+        for (Path candidate : candidates) {
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+
+        Path extracted = extractFromClasspath();
+        if (extracted != null) {
+            return extracted;
+        }
+
+        throw new IllegalStateException(
+                "AkShare bridge script not found. Tried filesystem: " + candidates
+                        + "; classpath: /akshare_bridge.py"
+        );
+    }
+
+    private static Path extractFromClasspath() {
+        try (InputStream in = AkshareClient.class.getResourceAsStream("/akshare_bridge.py")) {
+            if (in == null) {
+                return null;
+            }
+            Path target = Path.of(System.getProperty("java.io.tmpdir"), "akshare_bridge.py");
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+            target.toFile().setExecutable(true);
+            return target;
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private static final class ProcessResult {
