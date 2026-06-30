@@ -2,3 +2,20 @@ target/
 .venv/
 __pycache__/
 .pytest_cache/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts
+logs/
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
