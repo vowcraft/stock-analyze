@@ -90,6 +90,14 @@ class Settings:
     wecom_to_user: str | None
     wecom_to_party: str | None
     wecom_to_tag: str | None
+    db_enabled: bool
+    db_host: str | None
+    db_port: int | None
+    db_user: str | None
+    db_password: str | None
+    db_name: str | None
+    db_ssl_mode: str
+    db_connect_timeout: int
 
 
 def load_settings() -> Settings:
@@ -159,6 +167,14 @@ def load_settings() -> Settings:
         wecom_to_user=_read_optional("WECOM_TO_USER"),
         wecom_to_party=_read_optional("WECOM_TO_PARTY") or "1",
         wecom_to_tag=_read_optional("WECOM_TO_TAG"),
+        db_enabled=_read_bool("DB_ENABLED", False),
+        db_host=_read_optional("DB_HOST"),
+        db_port=_read_int("DB_PORT", 3306) if _read_optional("DB_PORT") else None,
+        db_user=_read_optional("DB_USER"),
+        db_password=_read_optional("DB_PASSWORD"),
+        db_name=_read_optional("DB_NAME"),
+        db_ssl_mode=_read_str("DB_SSL_MODE", "REQUIRED"),
+        db_connect_timeout=_read_int("DB_CONNECT_TIMEOUT", 10),
     )
 
 
