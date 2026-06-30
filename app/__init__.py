@@ -1,0 +1,1 @@
+"""stock-analyze Python application."""

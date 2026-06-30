@@ -4,12 +4,13 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/stock-analyze
-ExecStart=/opt/stock-analyze/scripts/start_polling.sh
+WorkingDirectory=/app/stock-analyze
+EnvironmentFile=-/app/stock-analyze/.env
+ExecStart=/app/stock-analyze/.venv/bin/python -m app
 Restart=always
 RestartSec=5
-StandardOutput=append:/opt/stock-analyze/logs/polling.log
-StandardError=append:/opt/stock-analyze/logs/polling.log
+StandardOutput=append:/app/stock-analyze/logs/polling.log
+StandardError=append:/app/stock-analyze/logs/polling.log
 
 [Install]
 WantedBy=multi-user.target

@@ -7,28 +7,25 @@ RELEASE_DIR="${APP_HOME}/release"
 TIMESTAMP="$(date +%Y%m%d%H%M%S)"
 ARCHIVE_NAME="stock-analyze-${TIMESTAMP}.tar.gz"
 ARCHIVE_PATH="${RELEASE_DIR}/${ARCHIVE_NAME}"
+STAGE_DIR="${RELEASE_DIR}/stock-analyze"
 
 mkdir -p "${RELEASE_DIR}"
 
-if ! command -v mvn >/dev/null 2>&1; then
-  echo "[package] maven not found. install Maven locally before packaging." >&2
-  exit 1
-fi
-
 cd "${APP_HOME}"
 
-echo "[package] building java artifacts"
-mvn -DskipTests package
+rm -rf "${STAGE_DIR}"
+mkdir -p "${STAGE_DIR}"
+
+cp -R app "${STAGE_DIR}/"
+cp -R deploy "${STAGE_DIR}/"
+cp -R scripts "${STAGE_DIR}/"
+cp README.md requirements.txt .env.example .gitignore "${STAGE_DIR}/"
 
 tar \
-  --exclude='./.git' \
-  --exclude='./.idea' \
-  --exclude='./.venv' \
-  --exclude='./logs' \
-  --exclude='./run' \
-  --exclude='./release' \
   -czf "${ARCHIVE_PATH}" \
-  -C "${APP_HOME}" \
-  .
+  -C "${RELEASE_DIR}" \
+  stock-analyze
+
+rm -rf "${STAGE_DIR}"
 
 echo "[package] created: ${ARCHIVE_PATH}"
