@@ -76,6 +76,16 @@ class Settings:
     app_leader_min_3day_return_pct: float
     app_backtest_forward_days: tuple[int, ...]
     app_backtest_signal_cooldown_days: int
+    app_regime_enabled: bool
+    app_regime_index_symbol: str
+    app_regime_lookback_days: int
+    app_regime_risk_on_threshold: float
+    app_regime_risk_off_threshold: float
+    app_regime_risk_on_change_mult: float
+    app_regime_risk_off_change_mult: float
+    app_regime_risk_on_amount_mult: float
+    app_regime_risk_off_amount_mult: float
+    app_regime_risk_off_pause: bool
     wecom_callback_path: str
     wecom_callback_receive_id: str
     wecom_callback_token: str
@@ -150,6 +160,16 @@ def load_settings() -> Settings:
         app_leader_min_3day_return_pct=_read_float("APP_LEADER_MIN_3DAY_RETURN_PCT", 3.0),
         app_backtest_forward_days=_read_int_tuple("APP_BACKTEST_FORWARD_DAYS", (1, 3, 5, 10)),
         app_backtest_signal_cooldown_days=_read_int("APP_BACKTEST_SIGNAL_COOLDOWN_DAYS", 5),
+        app_regime_enabled=_read_bool("APP_REGIME_ENABLED", True),
+        app_regime_index_symbol=_read_str("APP_REGIME_INDEX_SYMBOL", "sh000300"),
+        app_regime_lookback_days=_read_int("APP_REGIME_LOOKBACK_DAYS", 20),
+        app_regime_risk_on_threshold=_read_float("APP_REGIME_RISK_ON_THRESHOLD", 5.0),
+        app_regime_risk_off_threshold=_read_float("APP_REGIME_RISK_OFF_THRESHOLD", -3.0),
+        app_regime_risk_on_change_mult=_read_float("APP_REGIME_RISK_ON_CHANGE_MULT", 0.85),
+        app_regime_risk_off_change_mult=_read_float("APP_REGIME_RISK_OFF_CHANGE_MULT", 1.6),
+        app_regime_risk_on_amount_mult=_read_float("APP_REGIME_RISK_ON_AMOUNT_MULT", 0.85),
+        app_regime_risk_off_amount_mult=_read_float("APP_REGIME_RISK_OFF_AMOUNT_MULT", 1.6),
+        app_regime_risk_off_pause=_read_bool("APP_REGIME_RISK_OFF_PAUSE", True),
         wecom_callback_path=_normalize_path(_read_str("WECOM_CALLBACK_PATH", "/wecom/callback")),
         wecom_callback_receive_id=_read_str("WECOM_CALLBACK_RECEIVE_ID", corp_id),
         wecom_callback_token=_read_str("WECOM_CALLBACK_TOKEN", "stockanalyze2026"),

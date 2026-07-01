@@ -243,6 +243,39 @@ class AkshareStockService:
             adjust=adjust or "",
         )
 
+    def get_index_history(
+        self,
+        index_symbol: str,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[dict[str, object]]:
+        """拉大盘指数日线 (沪深300/创业板指等)。
+
+        akshare.stock_zh_index_daily 不支持区间参数,内部全量拉回后切片。
+        返回 records 字段为 akshare 原生英文 (date/open/close/high/low/volume)。
+        """
+        try:
+            frame = ak.stock_zh_index_daily(symbol=index_symbol)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("load index history failed, symbol=%s, error=%s", index_symbol, exc)
+            return []
+        if frame is None or frame.empty:
+            return []
+
+        date_column = "date" if "date" in frame.columns else ("日期" if "日期" in frame.columns else None)
+        if date_column is not None:
+            frame = frame.copy()
+            frame[date_column] = pd.to_datetime(frame[date_column], errors="coerce")
+            frame = frame.dropna(subset=[date_column])
+            if start_date is not None:
+                frame = frame[frame[date_column].dt.date >= start_date]
+            if end_date is not None:
+                frame = frame[frame[date_column].dt.date <= end_date]
+
+        if frame.empty:
+            return []
+        return _normalize_frame(frame)
+
     @staticmethod
     def _get_zt_pool(function_name: str, target_day: date) -> list[dict[str, object]]:
         frame_getter = getattr(ak, function_name, None)

@@ -110,6 +110,17 @@ APP_LEADER_MIN_3DAY_RETURN_PCT=3
 APP_BACKTEST_FORWARD_DAYS=1,3,5,10
 APP_BACKTEST_SIGNAL_COOLDOWN_DAYS=5
 
+APP_REGIME_ENABLED=true
+APP_REGIME_INDEX_SYMBOL=sh000300
+APP_REGIME_LOOKBACK_DAYS=20
+APP_REGIME_RISK_ON_THRESHOLD=5.0
+APP_REGIME_RISK_OFF_THRESHOLD=-3.0
+APP_REGIME_RISK_ON_CHANGE_MULT=0.85
+APP_REGIME_RISK_ON_AMOUNT_MULT=0.85
+APP_REGIME_RISK_OFF_CHANGE_MULT=1.6
+APP_REGIME_RISK_OFF_AMOUNT_MULT=1.6
+APP_REGIME_RISK_OFF_PAUSE=true
+
 WECOM_CALLBACK_PATH=/wecom/callback
 WECOM_CALLBACK_RECEIVE_ID=wwad4729df5fff92cf
 WECOM_CALLBACK_TOKEN=stockanalyze2026
@@ -137,6 +148,22 @@ WECOM_TO_TAG=
 
 - `leader_momentum`：超短主线板块 + 龙头动量策略
 - `breakout`：通用放量突破策略
+
+## 市场环境 (regime) 切换
+
+策略会根据大盘指数的 lookback 日涨幅自动切换三态:
+
+| 状态 | 触发条件 | 行为 |
+|---|---|---|
+| RISK_ON (激进) | 大盘 20 日涨幅 ≥ `APP_REGIME_RISK_ON_THRESHOLD` (默认 +5%) | 关键阈值乘以 `APP_REGIME_RISK_ON_*_MULT` (默认 ×0.85,放宽) |
+| NEUTRAL (中性) | 其他 | 默认阈值 (与原版一致) |
+| RISK_OFF (防御) | 大盘 20 日涨幅 ≤ `APP_REGIME_RISK_OFF_THRESHOLD` (默认 -3%) | 默认直接停止推送 (`APP_REGIME_RISK_OFF_PAUSE=true`);关闭暂停后改为乘以 `APP_REGIME_RISK_OFF_*_MULT` 收紧 |
+
+**关键设计**:
+- 默认配置 (`APP_REGIME_ENABLED=true` + 乘数 0.85/1.0/1.6) 在 NEUTRAL 状态下行为与改动前完全一致,零回归。
+- `APP_REGIME_ENABLED=false` 可彻底关闭,回退到未引入 regime 时的行为。
+- 当前只调整 **涨跌幅门槛** 和 **成交额门槛** 两类阈值;其他阈值 (换手率/量比/MA 等) 保持原值。
+- akshare 拉指数失败 → 自动降级到 NEUTRAL,日志告警,不阻断策略。
 
 ## 买点规则
 
@@ -192,6 +219,7 @@ python -m app.backtest --symbols 000725,002653,300657 --start 2026-01-01 --end 2
 - 默认评估持有周期：`1,3,5,10` 个交易日
 - 回测时如果是 `leader_momentum`，会用同一套超短动量条件做历史筛选
 - 当前回测对 `强势池/涨停池/炸板池` 这类盘中特征采用近似替代，适合做第一轮筛选，不等于完整盘口级复盘
+- 回测已纳入 regime 过滤,逐日判定大盘环境并应用对应阈值乘数,RISK_OFF 当天不计入信号 (与实盘口径一致)。关闭后 (`APP_REGIME_ENABLED=false`) 回退到原口径
 
 也可以直接复制：
 

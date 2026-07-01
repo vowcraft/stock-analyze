@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 
 from app.config import settings
+from app.services.market_regime import MarketRegimeService, Regime, RegimeSnapshot
 from app.services.stock_service import AkshareStockService
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -42,13 +47,66 @@ class BacktestSignalResult:
 
 
 class BuySignalService:
-    def __init__(self, stock_service: AkshareStockService | None = None) -> None:
+    def __init__(
+        self,
+        stock_service: AkshareStockService | None = None,
+        regime_service: MarketRegimeService | None = None,
+    ) -> None:
         self._stock_service = stock_service or AkshareStockService()
+        self._regime_service = regime_service or MarketRegimeService(self._stock_service)
+        self._regime_snapshot: RegimeSnapshot | None = None
+        self._regime_multipliers: dict[str, float] = {"change_pct": 1.0, "amount": 1.0}
 
     def scan_market_buy_signals(self) -> list[BuySignal]:
+        self._refresh_regime_context()
+        if (
+            self._regime_snapshot is not None
+            and self._regime_snapshot.regime == Regime.RISK_OFF
+            and settings.app_regime_risk_off_pause
+        ):
+            logger.info("[regime=%s] skipping market buy scan", self._regime_snapshot.regime.value)
+            return []
         if settings.app_signal_strategy == "breakout":
             return self._scan_breakout_signals()
         return self._scan_leader_momentum_signals()
+
+    def _refresh_regime_context(self) -> None:
+        if not settings.app_regime_enabled:
+            self._regime_snapshot = RegimeSnapshot(
+                regime=Regime.NEUTRAL,
+                index_symbol=settings.app_regime_index_symbol,
+                lookback_days=settings.app_regime_lookback_days,
+                return_pct=0.0,
+                classified_at=datetime.now(),
+            )
+            self._regime_multipliers = {"change_pct": 1.0, "amount": 1.0}
+            return
+        snapshot = self._regime_service.classify()
+        self._regime_snapshot = snapshot
+        self._regime_multipliers = self._multipliers_for(snapshot.regime)
+
+    def _multipliers_for(self, regime: Regime) -> dict[str, float]:
+        if regime == Regime.RISK_ON:
+            return {
+                "change_pct": settings.app_regime_risk_on_change_mult,
+                "amount": settings.app_regime_risk_on_amount_mult,
+            }
+        if regime == Regime.RISK_OFF:
+            return {
+                "change_pct": settings.app_regime_risk_off_change_mult,
+                "amount": settings.app_regime_risk_off_amount_mult,
+            }
+        return {"change_pct": 1.0, "amount": 1.0}
+
+    def _effective_change(self, base: float) -> float:
+        return base * self._regime_multipliers["change_pct"]
+
+    def _effective_amount(self, base: float) -> float:
+        return base * self._regime_multipliers["amount"]
+
+    @property
+    def last_regime_snapshot(self) -> RegimeSnapshot | None:
+        return self._regime_snapshot
 
     def backtest_buy_signals(
         self,
@@ -374,7 +432,7 @@ class BuySignalService:
         if signal is None:
             return None
 
-        if signal.change_pct < settings.app_leader_min_change_pct or signal.change_pct > settings.app_leader_max_change_pct:
+        if signal.change_pct < self._effective_change(settings.app_leader_min_change_pct) or signal.change_pct > settings.app_leader_max_change_pct:
             return None
         if signal.turnover_rate < settings.app_leader_min_turnover_rate:
             return None
@@ -382,7 +440,7 @@ class BuySignalService:
             return None
         if signal.volume_multiple < settings.app_leader_min_volume_multiple:
             return None
-        if signal.amount < settings.app_leader_min_amount:
+        if signal.amount < self._effective_amount(settings.app_leader_min_amount):
             return None
         if signal.latest_price < settings.app_leader_min_price:
             return None
@@ -452,11 +510,11 @@ class BuySignalService:
 
             if latest_price is None or latest_price < settings.app_signal_min_price:
                 continue
-            if change_pct is None or change_pct < settings.app_signal_min_change_pct:
+            if change_pct is None or change_pct < self._effective_change(settings.app_signal_min_change_pct):
                 continue
             if change_pct > settings.app_signal_max_change_pct:
                 continue
-            if amount is None or amount < settings.app_signal_min_amount:
+            if amount is None or amount < self._effective_amount(settings.app_signal_min_amount):
                 continue
             if turnover_rate is None or turnover_rate < settings.app_signal_min_turnover_rate:
                 continue
@@ -610,6 +668,12 @@ class BuySignalService:
             return []
 
         stock_name = self._stock_service.get_stock_name(symbol)
+
+        # 拉一次指数历史 (regime 用),避免循环里反复 IO
+        index_records: list[dict[str, object]] | None = None
+        if settings.app_regime_enabled:
+            index_records = self._stock_service.get_index_history(settings.app_regime_index_symbol)
+
         signals: list[BacktestSignalResult] = []
         last_signal_index = -10_000
         for index, row in frame.iterrows():
@@ -619,10 +683,18 @@ class BuySignalService:
             if index - last_signal_index < settings.app_backtest_signal_cooldown_days:
                 continue
 
+            # 逐日判定 regime
+            multipliers: dict[str, float] = {"change_pct": 1.0, "amount": 1.0}
+            if settings.app_regime_enabled and index_records:
+                regime_snap = self._regime_service.classify_for_date(signal_date, index_records)
+                if regime_snap.regime == Regime.RISK_OFF and settings.app_regime_risk_off_pause:
+                    continue
+                multipliers = self._multipliers_for(regime_snap.regime)
+
             if settings.app_signal_strategy == "breakout":
-                signal = _build_backtest_breakout_signal(symbol, stock_name, row)
+                signal = _build_backtest_breakout_signal(symbol, stock_name, row, multipliers)
             else:
-                signal = _build_backtest_leader_signal(symbol, stock_name, row)
+                signal = _build_backtest_leader_signal(symbol, stock_name, row, multipliers)
             if signal is None:
                 continue
 
@@ -639,8 +711,8 @@ class BuySignalService:
         return signals
 
 
-def _build_backtest_breakout_signal(symbol: str, stock_name: str, row: pd.Series) -> BuySignal | None:
-    if not _match_breakout_row(row):
+def _build_backtest_breakout_signal(symbol: str, stock_name: str, row: pd.Series, multipliers: dict[str, float] | None = None) -> BuySignal | None:
+    if not _match_breakout_row(row, multipliers):
         return None
     return BuySignal(
         symbol=symbol,
@@ -675,8 +747,8 @@ def _build_backtest_breakout_signal(symbol: str, stock_name: str, row: pd.Series
     )
 
 
-def _build_backtest_leader_signal(symbol: str, stock_name: str, row: pd.Series) -> BuySignal | None:
-    if not _match_leader_row(row):
+def _build_backtest_leader_signal(symbol: str, stock_name: str, row: pd.Series, multipliers: dict[str, float] | None = None) -> BuySignal | None:
+    if not _match_leader_row(row, multipliers):
         return None
     score = _score_leader_signal(
         change_pct=float(row["涨跌幅"]),
@@ -787,7 +859,9 @@ def _is_realtime_candidate(snapshot: dict[str, object]) -> bool:
     return True
 
 
-def _match_breakout_row(row: pd.Series) -> bool:
+def _match_breakout_row(row: pd.Series, multipliers: dict[str, float] | None = None) -> bool:
+    mult_change = (multipliers or {}).get("change_pct", 1.0)
+    mult_amount = (multipliers or {}).get("amount", 1.0)
     close_price = _to_float(row.get("收盘"))
     change_pct = _to_float(row.get("涨跌幅"))
     turnover_rate = _to_float(row.get("换手率"))
@@ -801,20 +875,22 @@ def _match_breakout_row(row: pd.Series) -> bool:
         return False
     if close_price < settings.app_signal_min_price:
         return False
-    if change_pct < settings.app_signal_min_change_pct or change_pct > settings.app_signal_max_change_pct:
+    if change_pct < settings.app_signal_min_change_pct * mult_change or change_pct > settings.app_signal_max_change_pct:
         return False
     if close_price <= breakout_high or close_price <= ma20 or close_price <= ma60:
         return False
     if volume_multiple < settings.app_signal_min_volume_multiple:
         return False
-    if amount is not None and amount < settings.app_signal_min_amount:
+    if amount is not None and amount < settings.app_signal_min_amount * mult_amount:
         return False
     if turnover_rate is not None and turnover_rate < settings.app_signal_min_turnover_rate:
         return False
     return True
 
 
-def _match_leader_row(row: pd.Series) -> bool:
+def _match_leader_row(row: pd.Series, multipliers: dict[str, float] | None = None) -> bool:
+    mult_change = (multipliers or {}).get("change_pct", 1.0)
+    mult_amount = (multipliers or {}).get("amount", 1.0)
     close_price = _to_float(row.get("收盘"))
     change_pct = _to_float(row.get("涨跌幅"))
     turnover_rate = _to_float(row.get("换手率"))
@@ -842,11 +918,11 @@ def _match_leader_row(row: pd.Series) -> bool:
         return False
     if close_price < settings.app_leader_min_price:
         return False
-    if change_pct < settings.app_leader_min_change_pct or change_pct > settings.app_leader_max_change_pct:
+    if change_pct < settings.app_leader_min_change_pct * mult_change or change_pct > settings.app_leader_max_change_pct:
         return False
     if turnover_rate is not None and turnover_rate < settings.app_leader_min_turnover_rate:
         return False
-    if amount < settings.app_leader_min_amount:
+    if amount < settings.app_leader_min_amount * mult_amount:
         return False
     if close_price <= breakout_high or close_price <= ma20 or close_price <= ma60:
         return False

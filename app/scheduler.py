@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.config import settings
+from app.services.market_regime import MarketRegimeService, RegimeSnapshot
 from app.services.signal_service import BuySignal, BuySignalService
 from app.services.stock_service import AkshareStockService
 from app.services.wecom_service import WeComNotifier
@@ -14,7 +15,8 @@ from app.services.wecom_service import WeComNotifier
 logger = logging.getLogger(__name__)
 _scheduler = BackgroundScheduler()
 _stock_service = AkshareStockService()
-_signal_service = BuySignalService(_stock_service)
+_regime_service = MarketRegimeService(_stock_service)
+_signal_service = BuySignalService(_stock_service, _regime_service)
 _notifier = WeComNotifier()
 _signal_sent_at: dict[str, datetime] = {}
 
@@ -81,8 +83,9 @@ def _poll_symbols_mode(now: datetime) -> None:
 
 def _poll_market_buy_mode(now: datetime) -> None:
     signals = _signal_service.scan_market_buy_signals()
+    regime_text = _regime_text(_signal_service.last_regime_snapshot)
     if not signals:
-        logger.info("[%s] no market buy signals", _now_text(now))
+        logger.info("[%s] no market buy signals [regime=%s]", _now_text(now), regime_text or "n/a")
         return
 
     fresh_signals = [signal for signal in signals if _should_send_signal(signal, now)]
@@ -91,8 +94,15 @@ def _poll_market_buy_mode(now: datetime) -> None:
         return
 
     _mark_signals_sent(fresh_signals, now)
-    logger.info("[%s] found %s fresh market buy signals", _now_text(now), len(fresh_signals))
-    _notifier.send_text(_build_market_buy_message(fresh_signals, now))
+    logger.info(
+        "[%s] found %s fresh market buy signals [regime=%s]",
+        _now_text(now),
+        len(fresh_signals),
+        regime_text or "n/a",
+    )
+    _notifier.send_text(
+        _build_market_buy_message(fresh_signals, now, _signal_service.last_regime_snapshot)
+    )
 
 
 def _should_send_signal(signal: BuySignal, now: datetime) -> bool:
@@ -120,8 +130,16 @@ def _build_symbol_message(symbols: tuple[str, ...], snapshots: dict[str, dict[st
     return "\n".join(lines)
 
 
-def _build_market_buy_message(signals: list[BuySignal], now: datetime) -> str:
-    lines = [f"A股超短信号 {_now_text(now)}", f"命中 {len(signals)} 只"]
+def _build_market_buy_message(
+    signals: list[BuySignal],
+    now: datetime,
+    regime_snapshot: RegimeSnapshot | None = None,
+) -> str:
+    lines = [f"A股超短信号 {_now_text(now)}"]
+    regime_text = _regime_text(regime_snapshot)
+    if regime_text:
+        lines.append(f"环境:{regime_text}")
+    lines.append(f"命中 {len(signals)} 只")
     for index, signal in enumerate(signals, start=1):
         theme_prefix = ""
         if signal.theme_name and signal.theme_name != "全市场":
@@ -240,3 +258,9 @@ def _as_text(value: object) -> str:
 
 def _now_text(now: datetime) -> str:
     return now.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _regime_text(snapshot: RegimeSnapshot | None) -> str:
+    if not settings.app_regime_enabled or snapshot is None:
+        return ""
+    return f"{snapshot.regime.label_zh()}({snapshot.regime.value} {snapshot.return_pct:+.2f}%)"
